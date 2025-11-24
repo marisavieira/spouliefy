@@ -169,8 +169,13 @@ async function handleNowPlaying(req, res, widgetKey) {
       return res.status(200).json({ playing: false, track: null });
     }
 
+    const progressMs = nowPlayingData.progress_ms ?? 0;
+    const durationMs = item.duration_ms ?? 0;
+
     const payload = {
       playing: nowPlayingData.is_playing,
+      progressMs,
+      durationMs,
       track: {
         title: item.name,
         artists: item.artists.map(a => a.name),
