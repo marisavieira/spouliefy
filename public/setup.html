@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pouliefy • Conectar Spotify</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #bfadff, #363a6a 60%);
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: rgba(0, 0, 0, 0.35);
+      border-radius: 24px;
+      padding: 24px 28px;
+      max-width: 420px;
+      width: 100%;
+      box-shadow: 0 18px 40px rgba(0,0,0,0.45);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 22px;
+    }
+    p {
+      margin: 6px 0;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    button {
+      margin-top: 16px;
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 15px;
+    }
+    .primary {
+      background: #bfadff;
+      color: #1c1638;
+    }
+    .note {
+      margin-top: 12px;
+      font-size: 12px;
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Pouliefy Spotify Widget</h1>
+    <p>Conecte sua conta Spotify para usar o widget de “música tocando agora” no StreamElements.</p>
+    <p>Depois de conectar, você vai receber um código para colar no widget.</p>
+
+    <button class="primary" id="connect-btn">
+      Conectar com Spotify 🎧
+    </button>
+
+    <p class="note">
+      Dica: abra esta página em um navegador logado na mesma conta Spotify onde você escuta as músicas.
+    </p>
+  </div>
+
+  <script>
+    // Depois vamos trocar isso pelo fluxo real de login.
+    document.getElementById("connect-btn").addEventListener("click", () => {
+      alert("Em breve este botão vai te mandar para o login do Spotify 💜");
+    });
+  </script>
+</body>
+</html>
