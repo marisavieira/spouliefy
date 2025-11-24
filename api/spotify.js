@@ -1,15 +1,26 @@
 // Store em memória (apenas para testes)
 const store = globalThis.spotifyStore || (globalThis.spotifyStore = new Map());
 
+function setCors(res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
 export default async function handler(req, res) {
+  setCors(res);
+
+  if (req.method === "OPTIONS") {
+    res.status(200).end();
+    return;
+  }
+
   const { code, widgetKey } = req.query;
 
-  // Se veio "code", é o callback do Spotify após login
   if (code) {
     return handleCallback(req, res, code);
   }
 
-  // Se veio "widgetKey", é pedido de música atual
   if (widgetKey) {
     return handleNowPlaying(req, res, widgetKey);
   }
