@@ -72,17 +72,11 @@ async function handleCallback(req, res, code) {
     res.status(200).send(`
       <html>
         <body style="font-family: sans-serif; padding: 20px;">
-          <h2>🎉 Conexão realizada com sucesso!</h2>
-          <p>Copie seu código abaixo e cole no widget do StreamElements (ou teste direto na URL):</p>
+          <p>Copie seu código abaixo e cole no widget do StreamElements:</p>
 
           <h1 style="background:#efebff; padding:10px; border-radius:8px; display:inline-block;">
             ${widgetKey}
           </h1>
-
-          <p style="margin-top:20px; max-width:500px;">
-            Para testar, abra:<br>
-            <code>https://spouliefy.vercel.app/api/spotify?widgetKey=${widgetKey}</code>
-          </p>
 
           <p style="margin-top:20px;">Você já pode fechar esta página.</p>
         </body>
