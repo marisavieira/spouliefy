@@ -32,6 +32,20 @@
       font-size: 14px;
       line-height: 1.5;
     }
+    label {
+      display: block;
+      margin-top: 16px;
+      font-size: 13px;
+    }
+    input {
+      margin-top: 6px;
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: none;
+      outline: none;
+      font-size: 14px;
+    }
     button {
       margin-top: 16px;
       width: 100%;
@@ -57,7 +71,20 @@
   <div class="card">
     <h1>Pouliefy Spotify Widget</h1>
     <p>Conecte sua conta Spotify para usar o widget de “música tocando agora” no StreamElements.</p>
-    <p>Depois de conectar, você vai receber um código para colar no widget.</p>
+    <p>
+      1. Cole abaixo a sua <strong>Widget Key</strong> (a mesma que você vai usar no widget no StreamElements).<br>
+      2. Clique em “Conectar com Spotify”.<br>
+      3. Faça login e autorize o acesso. Pronto!
+    </p>
+
+    <label for="widgetKeyInput">
+      Widget Key
+      <input
+        id="widgetKeyInput"
+        type="text"
+        placeholder="Cole aqui a widget key do seu widget"
+      />
+    </label>
 
     <button class="primary" id="connect-btn">
       Conectar com Spotify 🎧
@@ -69,9 +96,37 @@
   </div>
 
   <script>
-    // Depois vamos trocar isso pelo fluxo real de login.
+    // 🔐 TROCAR PELO SEU CLIENT ID DO SPOTIFY
+    const SPOTIFY_CLIENT_ID = "SEU_CLIENT_ID_DO_SPOTIFY_AQUI";
+
+    // precisa ser IGUAL ao SPOTIFY_REDIRECT_URI do backend e ao cadastrado no painel do Spotify
+    const REDIRECT_URI = "https://spouliefy.vercel.app/api/spotify-login";
+
+    const SCOPES = [
+      "user-read-playback-state"
+    ];
+
     document.getElementById("connect-btn").addEventListener("click", () => {
-      window.location.href = "/api/spotify-login";
+      const widgetKeyInput = document.getElementById("widgetKeyInput");
+      const widgetKey = widgetKeyInput.value.trim();
+
+      if (!widgetKey) {
+        alert("Por favor, preencha a Widget Key (a mesma que você vai usar no StreamElements).");
+        widgetKeyInput.focus();
+        return;
+      }
+
+      const params = new URLSearchParams({
+        response_type: "code",
+        client_id: SPOTIFY_CLIENT_ID,
+        redirect_uri: REDIRECT_URI,
+        scope: SCOPES.join(" "),
+        state: widgetKey   // 👈 importantíssimo: aqui vai a widgetKey
+      });
+
+      const authorizeUrl = `https://accounts.spotify.com/authorize?${params.toString()}`;
+      console.log("Redirecionando para:", authorizeUrl);
+      window.location.href = authorizeUrl;
     });
   </script>
 </body>
