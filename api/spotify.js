@@ -1,229 +1,134 @@
-import { redis } from "../lib/redis";
+// api/spotify.js
+import {
+  getSession,
+  updateAccessToken,
+  saveTrackCache,
+  getTrackCache
+} from "./spotifyStore.js";
 
-function setCors(res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-}
+const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
+const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 
-export default async function handler(req, res) {
-  setCors(res);
-
-  if (req.method === "OPTIONS") {
-    res.status(200).end();
-    return;
+async function refreshAccessToken(widgetKey) {
+  const session = await getSession(widgetKey);
+  if (!session || !session.refreshToken) {
+    throw new Error("Sessão ou refresh token não encontrado para essa widgetKey");
   }
 
-  const { code, user } = req.query;
+  const basicAuth = Buffer
+    .from(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`)
+    .toString("base64");
 
-  if (code) {
-    return handleCallback(req, res, code);
-  }
-
-  if (user) {
-    return handleNowPlaying(req, res, user);
-  }
-
-  res.status(400).json({ error: "Faltando parâmetro 'code' ou 'user'." });
-}
-
-// ======================================================
-// 1. HANDLE CALLBACK DO SPOTIFY (TROCA CODE POR TOKEN)
-// ======================================================
-
-async function handleCallback(req, res, code) {
-  const clientId = process.env.SPOTIFY_CLIENT_ID;
-  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-  const redirectUri = process.env.SPOTIFY_REDIRECT_URI;
-
-  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-
-  try {
-    // 1) Trocar CODE por tokens
-    const tokenResponse = await fetch("https://accounts.spotify.com/api/token", {
-      method: "POST",
-      headers: {
-        "Authorization": `Basic ${credentials}`,
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      body: new URLSearchParams({
-        grant_type: "authorization_code",
-        code,
-        redirect_uri: redirectUri
-      })
-    });
-
-    const tokenData = await tokenResponse.json();
-
-    if (!tokenResponse.ok) {
-      console.error("Erro ao pegar token:", tokenData);
-      return res.status(500).json({ error: tokenData });
-    }
-
-    const accessToken = tokenData.access_token;
-    const refreshToken = tokenData.refresh_token;
-    const expiresAt = Date.now() + tokenData.expires_in * 1000;
-
-    // 2) Buscar dados do usuário (para obter o ID/username)
-    const meRes = await fetch("https://api.spotify.com/v1/me", {
-      headers: {
-        "Authorization": `Bearer ${accessToken}`
-      }
-    });
-
-    const me = await meRes.json();
-
-    if (!meRes.ok) {
-      console.error("Erro ao buscar /me:", me);
-      return res.status(500).json({ error: "Erro ao buscar perfil" });
-    }
-
-    const spotifyUserId = me.id; // ← AGORA ISSO É NOSSA KEY!
-
-    // 3) Salvar no Redis
-    await redis.set(`spotify:${spotifyUserId}`, {
-      accessToken,
-      refreshToken,
-      expiresAt
-    });
-
-    // 4) Responder com instrução
-    res.status(200).send(`
-      <html>
-        <body style="font-family: sans-serif; padding: 20px;">
-          <p>Seu usuário Spotify foi conectado com sucesso!</p>
-
-          <p>Use este username no seu widget:</p>
-
-          <h1 style="background:#efebff; padding:10px; border-radius:8px; display:inline-block;">
-            ${spotifyUserId}
-          </h1>
-
-          <p style="margin-top:20px;">
-            Agora use esta URL no StreamElements/widget:
-          </p>
-
-          <code style="font-size:16px; background:#eee; padding:6px; display:block; margin-top:6px;">
-            ${process.env.NEXT_PUBLIC_BASE_URL}/api/spotify?user=${spotifyUserId}
-          </code>
-
-          <p style="margin-top:20px;">Você já pode fechar esta página.</p>
-        </body>
-      </html>
-    `);
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Erro ao trocar código por token.");
-  }
-}
-
-// ======================================================
-// 2. REFRESH TOKEN
-// ======================================================
-
-async function refreshAccessToken(spotifyUserId, record) {
-  const clientId = process.env.SPOTIFY_CLIENT_ID;
-  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-
-  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-
-  const refreshResponse = await fetch("https://accounts.spotify.com/api/token", {
+  const res = await fetch("https://accounts.spotify.com/api/token", {
     method: "POST",
     headers: {
-      "Authorization": `Basic ${credentials}`,
-      "Content-Type": "application/x-www-form-urlencoded"
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Authorization": `Basic ${basicAuth}`
     },
     body: new URLSearchParams({
       grant_type: "refresh_token",
-      refresh_token: record.refreshToken
+      refresh_token: session.refreshToken
     })
   });
 
-  const refreshData = await refreshResponse.json();
+  const data = await res.json();
 
-  if (!refreshResponse.ok) {
-    console.error("Erro ao renovar token:", refreshData);
-    throw new Error("Erro ao renovar token");
+  if (!res.ok) {
+    console.error("Erro ao dar refresh no token do Spotify:", data);
+    throw new Error("Falha ao atualizar token do Spotify");
   }
 
-  const newAccessToken = refreshData.access_token;
-  const newRefreshToken = refreshData.refresh_token || record.refreshToken;
-  const newExpiresAt = Date.now() + refreshData.expires_in * 1000;
+  await updateAccessToken(widgetKey, {
+    accessToken: data.access_token,
+    expiresIn: data.expires_in || 3600
+  });
 
-  const newRecord = {
-    accessToken: newAccessToken,
-    refreshToken: newRefreshToken,
-    expiresAt: newExpiresAt
-  };
-
-  await redis.set(`spotify:${spotifyUserId}`, newRecord);
-
-  return newRecord;
+  return data.access_token;
 }
 
-// ======================================================
-// 3. HANDLE NOW PLAYING
-// ======================================================
+async function getValidAccessToken(widgetKey) {
+  const session = await getSession(widgetKey);
+  if (!session) {
+    throw new Error("Sessão não encontrada para essa widgetKey");
+  }
 
-async function handleNowPlaying(req, res, spotifyUserId) {
-  let record = await redis.get(`spotify:${spotifyUserId}`);
+  const now = Date.now();
 
-  if (!record) {
-    return res.status(404).json({ error: "Usuário não conectado." });
+  if (session.accessToken && session.expiresAt && now < session.expiresAt) {
+    return session.accessToken;
+  }
+
+  return await refreshAccessToken(widgetKey);
+}
+
+async function fetchCurrentTrackFromSpotify(accessToken) {
+  const res = await fetch("https://api.spotify.com/v1/me/player/currently-playing", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`
+    }
+  });
+
+  if (res.status === 204) {
+    return {
+      isPlaying: false,
+      progressMs: 0,
+      durationMs: 0,
+      track: null
+    };
+  }
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    console.error("Erro ao buscar música atual:", data);
+    throw new Error("Não foi possível obter a música atual");
+  }
+
+  return {
+    isPlaying: data.is_playing,
+    progressMs: data.progress_ms,
+    durationMs: data.item?.duration_ms,
+    track: {
+      name: data.item?.name,
+      artists: data.item?.artists?.map((a) => a.name).join(", "),
+      album: data.item?.album?.name,
+      image: data.item?.album?.images?.[0]?.url
+    }
+  };
+}
+
+export default async function handler(req, res) {
+  const { widgetKey } = req.query;
+
+  if (!widgetKey) {
+    return res.status(400).json({ error: "widgetKey é obrigatório" });
   }
 
   try {
-    // token expirado?
-    if (Date.now() >= record.expiresAt) {
-      record = await refreshAccessToken(spotifyUserId, record);
-    }
+    // 1) tenta usar cache
+    const CACHE_WINDOW_MS = 4000; // 4s
+    const cached = await getTrackCache(widgetKey);
 
-    let nowPlayingRes = await fetchNowPlaying(record.accessToken);
-
-    // 401 → access token expirou e precisa atualizar
-    if (nowPlayingRes.status === 401) {
-      record = await refreshAccessToken(spotifyUserId, record);
-      nowPlayingRes = await fetchNowPlaying(record.accessToken);
-    }
-
-    if (nowPlayingRes.status === 204 || nowPlayingRes.status === 202) {
-      return res.status(200).json({ playing: false, track: null });
-    }
-
-    const nowPlayingData = await nowPlayingRes.json();
-
-    if (!nowPlayingRes.ok) {
-      console.error("Erro ao buscar música:", nowPlayingData);
-      return res.status(500).json({ error: "Erro ao buscar música atual" });
-    }
-
-    const track = nowPlayingData.item;
-
-    if (!track) {
-      return res.status(200).json({ playing: false, track: null });
-    }
-
-    res.status(200).json({
-      playing: nowPlayingData.is_playing,
-      progressMs: nowPlayingData.progress_ms,
-      durationMs: track.duration_ms,
-      track: {
-        title: track.name,
-        artists: track.artists.map(a => a.name),
-        album: track.album.name,
-        albumImage: track.album.images?.[0]?.url || null
+    if (cached && cached.trackData && cached.fetchedAt) {
+      const now = Date.now();
+      if (now - cached.fetchedAt < CACHE_WINDOW_MS) {
+        return res.status(200).json(cached.trackData);
       }
-    });
+    }
 
+    // 2) garante access_token válido (com refresh automático)
+    const accessToken = await getValidAccessToken(widgetKey);
+
+    // 3) chama Spotify
+    const trackData = await fetchCurrentTrackFromSpotify(accessToken);
+
+    // 4) atualiza cache
+    await saveTrackCache(widgetKey, trackData);
+
+    // 5) responde pro widget
+    return res.status(200).json(trackData);
   } catch (err) {
-    console.error("Erro geral:", err);
-    res.status(500).json({ error: "Erro interno ao buscar música atual" });
+    console.error("Erro em /api/spotify:", err);
+    return res.status(500).json({ error: "Erro ao obter música atual" });
   }
-}
-
-function fetchNowPlaying(accessToken) {
-  return fetch("https://api.spotify.com/v1/me/player/currently-playing", {
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
 }
