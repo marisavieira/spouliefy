@@ -49,6 +49,8 @@ async function refreshAccessToken(widgetKey) {
 async function getValidAccessToken(widgetKey) {
   const session = await getSession(widgetKey);
   if (!session) {
+    // se alguém chamar isso sem sessão, deixa explodir,
+    // mas na prática a gente já checa no handler
     throw new Error("Sessão não encontrada para essa widgetKey");
   }
 
@@ -101,11 +103,18 @@ export default async function handler(req, res) {
   const { widgetKey } = req.query;
 
   if (!widgetKey) {
-    return res.status(400).json({ error: "widgetKey é obrigatório" });
+    return res.status(400).json({ error: "MISSING_WIDGET_KEY" });
   }
 
   try {
-    // 1) tenta usar cache
+    // ✅ 1) checa se existe sessão logo de cara
+    const session = await getSession(widgetKey);
+    if (!session) {
+      // isso aqui o widget entende como "Spotify not connected"
+      return res.status(404).json({ error: "NOT_CONNECTED" });
+    }
+
+    // ✅ 2) tenta usar cache
     const CACHE_WINDOW_MS = 4000; // 4s
     const cached = await getTrackCache(widgetKey);
 
@@ -116,19 +125,19 @@ export default async function handler(req, res) {
       }
     }
 
-    // 2) garante access_token válido (com refresh automático)
+    // ✅ 3) garante access_token válido (com refresh automático)
     const accessToken = await getValidAccessToken(widgetKey);
 
-    // 3) chama Spotify
+    // ✅ 4) chama Spotify
     const trackData = await fetchCurrentTrackFromSpotify(accessToken);
 
-    // 4) atualiza cache
+    // ✅ 5) atualiza cache
     await saveTrackCache(widgetKey, trackData);
 
-    // 5) responde pro widget
+    // ✅ 6) responde pro widget
     return res.status(200).json(trackData);
   } catch (err) {
     console.error("Erro em /api/spotify:", err);
-    return res.status(500).json({ error: "Erro ao obter música atual" });
+    return res.status(500).json({ error: "INTERNAL_ERROR" });
   }
 }
