@@ -1,4 +1,3 @@
-// Store em memória (apenas para testes)
 const store = globalThis.spotifyStore || (globalThis.spotifyStore = new Map());
 
 function setCors(res) {
@@ -56,14 +55,13 @@ async function handleCallback(req, res, code) {
       return res.status(500).json({ error: tokenData });
     }
 
-    // Gera um widgetKey simples
     const widgetKey = Math.random().toString(36).substring(2, 10);
 
-    // Salva os tokens em memória
     const expiresAt = Date.now() + tokenData.expires_in * 1000;
+
     store.set(widgetKey, {
       accessToken: tokenData.access_token,
-      refreshToken: tokenData.refresh_token,
+      refreshToken: tokenData.refresh_token, 
       expiresAt
     });
 
@@ -89,62 +87,72 @@ async function handleCallback(req, res, code) {
   }
 }
 
+async function refreshAccessToken(widgetKey, record) {
+  const { refreshToken } = record;
+
+  if (!refreshToken) {
+    throw new Error("Não há refresh_token salvo para este widgetKey.");
+  }
+
+  const clientId = process.env.SPOTIFY_CLIENT_ID;
+  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+
+  const refreshResponse = await fetch("https://accounts.spotify.com/api/token", {
+    method: "POST",
+    headers: {
+      "Authorization": `Basic ${credentials}`,
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken
+    })
+  });
+
+  const refreshData = await refreshResponse.json();
+
+  if (!refreshResponse.ok) {
+    console.error("Erro ao renovar token:", refreshData);
+    throw new Error("Erro ao renovar token");
+  }
+
+  const newAccessToken = refreshData.access_token;
+  const newExpiresAt = Date.now() + refreshData.expires_in * 1000;
+
+  const newRefreshToken = refreshData.refresh_token || refreshToken;
+
+  const updatedRecord = {
+    accessToken: newAccessToken,
+    refreshToken: newRefreshToken,
+    expiresAt: newExpiresAt
+  };
+
+  store.set(widgetKey, updatedRecord);
+
+  return updatedRecord;
+}
+
 async function handleNowPlaying(req, res, widgetKey) {
-  const record = store.get(widgetKey);
+  let record = store.get(widgetKey);
 
   if (!record) {
     return res.status(404).json({ error: "widgetKey não encontrado ou expirado" });
   }
 
-  let { accessToken, refreshToken, expiresAt } = record;
-
-  // Se o token expirou, tenta renovar
-  if (Date.now() >= expiresAt && refreshToken) {
-    try {
-      const clientId = process.env.SPOTIFY_CLIENT_ID;
-      const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-      const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-
-      const refreshResponse = await fetch("https://accounts.spotify.com/api/token", {
-        method: "POST",
-        headers: {
-          "Authorization": `Basic ${credentials}`,
-          "Content-Type": "application/x-www-form-urlencoded"
-        },
-        body: new URLSearchParams({
-          grant_type: "refresh_token",
-          refresh_token: refreshToken
-        })
-      });
-
-      const refreshData = await refreshResponse.json();
-
-      if (!refreshResponse.ok) {
-        console.error("Erro ao renovar token:", refreshData);
-        return res.status(500).json({ error: "Erro ao renovar token" });
-      }
-
-      accessToken = refreshData.access_token;
-      expiresAt = Date.now() + refreshData.expires_in * 1000;
-
-      store.set(widgetKey, {
-        accessToken,
-        refreshToken,
-        expiresAt
-      });
-    } catch (err) {
-      console.error("Erro no refresh:", err);
-      return res.status(500).json({ error: "Erro interno ao renovar token" });
-    }
-  }
-
-  // Buscar música atual
   try {
-    const nowPlayingRes = await fetch("https://api.spotify.com/v1/me/player/currently-playing", {
-      headers: {
-        Authorization: `Bearer ${accessToken}`
-      }
-    });
+    if (Date.now() >= record.expiresAt) {
+      console.log("Access token expirado, tentando refresh para widgetKey:", widgetKey);
+      record = await refreshAccessToken(widgetKey, record);
+    }
+
+    let nowPlayingRes = await fetchNowPlaying(record.accessToken);
+
+    if (nowPlayingRes.status === 401) {
+      console.log("Recebi 401 do Spotify, tentando refresh e retry para widgetKey:", widgetKey);
+      record = await refreshAccessToken(widgetKey, record);
+      nowPlayingRes = await fetchNowPlaying(record.accessToken);
+    }
 
     if (nowPlayingRes.status === 204 || nowPlayingRes.status === 202) {
       return res.status(200).json({ playing: false, track: null });
@@ -180,7 +188,15 @@ async function handleNowPlaying(req, res, widgetKey) {
 
     res.status(200).json(payload);
   } catch (err) {
-    console.error("Erro geral:", err);
+    console.error("Erro geral em handleNowPlaying:", err);
     res.status(500).json({ error: "Erro interno ao buscar música atual" });
   }
+}
+
+function fetchNowPlaying(accessToken) {
+  return fetch("https://api.spotify.com/v1/me/player/currently-playing", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`
+    }
+  });
 }
