@@ -1,4 +1,4 @@
-const store = globalThis.spotifyStore || (globalThis.spotifyStore = new Map());
+import { redis } from "../lib/redis";
 
 function setCors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -14,18 +14,22 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { code, widgetKey } = req.query;
+  const { code, user } = req.query;
 
   if (code) {
     return handleCallback(req, res, code);
   }
 
-  if (widgetKey) {
-    return handleNowPlaying(req, res, widgetKey);
+  if (user) {
+    return handleNowPlaying(req, res, user);
   }
 
-  res.status(400).json({ error: "Faltando parâmetro 'code' ou 'widgetKey'." });
+  res.status(400).json({ error: "Faltando parâmetro 'code' ou 'user'." });
 }
+
+// ======================================================
+// 1. HANDLE CALLBACK DO SPOTIFY (TROCA CODE POR TOKEN)
+// ======================================================
 
 async function handleCallback(req, res, code) {
   const clientId = process.env.SPOTIFY_CLIENT_ID;
@@ -35,6 +39,7 @@ async function handleCallback(req, res, code) {
   const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
 
   try {
+    // 1) Trocar CODE por tokens
     const tokenResponse = await fetch("https://accounts.spotify.com/api/token", {
       method: "POST",
       headers: {
@@ -55,26 +60,52 @@ async function handleCallback(req, res, code) {
       return res.status(500).json({ error: tokenData });
     }
 
-    const widgetKey = Math.random().toString(36).substring(2, 10);
-
+    const accessToken = tokenData.access_token;
+    const refreshToken = tokenData.refresh_token;
     const expiresAt = Date.now() + tokenData.expires_in * 1000;
 
-    store.set(widgetKey, {
-      accessToken: tokenData.access_token,
-      refreshToken: tokenData.refresh_token, 
+    // 2) Buscar dados do usuário (para obter o ID/username)
+    const meRes = await fetch("https://api.spotify.com/v1/me", {
+      headers: {
+        "Authorization": `Bearer ${accessToken}`
+      }
+    });
+
+    const me = await meRes.json();
+
+    if (!meRes.ok) {
+      console.error("Erro ao buscar /me:", me);
+      return res.status(500).json({ error: "Erro ao buscar perfil" });
+    }
+
+    const spotifyUserId = me.id; // ← AGORA ISSO É NOSSA KEY!
+
+    // 3) Salvar no Redis
+    await redis.set(`spotify:${spotifyUserId}`, {
+      accessToken,
+      refreshToken,
       expiresAt
     });
 
-    console.log("Salvei tokens para widgetKey:", widgetKey);
-
+    // 4) Responder com instrução
     res.status(200).send(`
       <html>
         <body style="font-family: sans-serif; padding: 20px;">
-          <p>Copie seu código abaixo e cole no widget do StreamElements:</p>
+          <p>Seu usuário Spotify foi conectado com sucesso!</p>
+
+          <p>Use este username no seu widget:</p>
 
           <h1 style="background:#efebff; padding:10px; border-radius:8px; display:inline-block;">
-            ${widgetKey}
+            ${spotifyUserId}
           </h1>
+
+          <p style="margin-top:20px;">
+            Agora use esta URL no StreamElements/widget:
+          </p>
+
+          <code style="font-size:16px; background:#eee; padding:6px; display:block; margin-top:6px;">
+            ${process.env.NEXT_PUBLIC_BASE_URL}/api/spotify?user=${spotifyUserId}
+          </code>
 
           <p style="margin-top:20px;">Você já pode fechar esta página.</p>
         </body>
@@ -87,15 +118,14 @@ async function handleCallback(req, res, code) {
   }
 }
 
-async function refreshAccessToken(widgetKey, record) {
-  const { refreshToken } = record;
+// ======================================================
+// 2. REFRESH TOKEN
+// ======================================================
 
-  if (!refreshToken) {
-    throw new Error("Não há refresh_token salvo para este widgetKey.");
-  }
-
+async function refreshAccessToken(spotifyUserId, record) {
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+
   const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
 
   const refreshResponse = await fetch("https://accounts.spotify.com/api/token", {
@@ -106,7 +136,7 @@ async function refreshAccessToken(widgetKey, record) {
     },
     body: new URLSearchParams({
       grant_type: "refresh_token",
-      refresh_token: refreshToken
+      refresh_token: record.refreshToken
     })
   });
 
@@ -118,39 +148,42 @@ async function refreshAccessToken(widgetKey, record) {
   }
 
   const newAccessToken = refreshData.access_token;
+  const newRefreshToken = refreshData.refresh_token || record.refreshToken;
   const newExpiresAt = Date.now() + refreshData.expires_in * 1000;
 
-  const newRefreshToken = refreshData.refresh_token || refreshToken;
-
-  const updatedRecord = {
+  const newRecord = {
     accessToken: newAccessToken,
     refreshToken: newRefreshToken,
     expiresAt: newExpiresAt
   };
 
-  store.set(widgetKey, updatedRecord);
+  await redis.set(`spotify:${spotifyUserId}`, newRecord);
 
-  return updatedRecord;
+  return newRecord;
 }
 
-async function handleNowPlaying(req, res, widgetKey) {
-  let record = store.get(widgetKey);
+// ======================================================
+// 3. HANDLE NOW PLAYING
+// ======================================================
+
+async function handleNowPlaying(req, res, spotifyUserId) {
+  let record = await redis.get(`spotify:${spotifyUserId}`);
 
   if (!record) {
-    return res.status(404).json({ error: "widgetKey não encontrado ou expirado" });
+    return res.status(404).json({ error: "Usuário não conectado." });
   }
 
   try {
+    // token expirado?
     if (Date.now() >= record.expiresAt) {
-      console.log("Access token expirado, tentando refresh para widgetKey:", widgetKey);
-      record = await refreshAccessToken(widgetKey, record);
+      record = await refreshAccessToken(spotifyUserId, record);
     }
 
     let nowPlayingRes = await fetchNowPlaying(record.accessToken);
 
+    // 401 → access token expirou e precisa atualizar
     if (nowPlayingRes.status === 401) {
-      console.log("Recebi 401 do Spotify, tentando refresh e retry para widgetKey:", widgetKey);
-      record = await refreshAccessToken(widgetKey, record);
+      record = await refreshAccessToken(spotifyUserId, record);
       nowPlayingRes = await fetchNowPlaying(record.accessToken);
     }
 
@@ -165,38 +198,32 @@ async function handleNowPlaying(req, res, widgetKey) {
       return res.status(500).json({ error: "Erro ao buscar música atual" });
     }
 
-    const item = nowPlayingData.item;
+    const track = nowPlayingData.item;
 
-    if (!item) {
+    if (!track) {
       return res.status(200).json({ playing: false, track: null });
     }
 
-    const progressMs = nowPlayingData.progress_ms ?? 0;
-    const durationMs = item.duration_ms ?? 0;
-
-    const payload = {
+    res.status(200).json({
       playing: nowPlayingData.is_playing,
-      progressMs,
-      durationMs,
+      progressMs: nowPlayingData.progress_ms,
+      durationMs: track.duration_ms,
       track: {
-        title: item.name,
-        artists: item.artists.map(a => a.name),
-        album: item.album.name,
-        albumImage: item.album.images?.[0]?.url || null
+        title: track.name,
+        artists: track.artists.map(a => a.name),
+        album: track.album.name,
+        albumImage: track.album.images?.[0]?.url || null
       }
-    };
+    });
 
-    res.status(200).json(payload);
   } catch (err) {
-    console.error("Erro geral em handleNowPlaying:", err);
+    console.error("Erro geral:", err);
     res.status(500).json({ error: "Erro interno ao buscar música atual" });
   }
 }
 
 function fetchNowPlaying(accessToken) {
   return fetch("https://api.spotify.com/v1/me/player/currently-playing", {
-    headers: {
-      Authorization: `Bearer ${accessToken}`
-    }
+    headers: { Authorization: `Bearer ${accessToken}` }
   });
 }
