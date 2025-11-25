@@ -9,10 +9,10 @@ import {
 const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 
-async function refreshAccessToken(widgetKey) {
-  const session = await getSession(widgetKey);
+async function refreshAccessToken(userId) {
+  const session = await getSession(userId);
   if (!session || !session.refreshToken) {
-    throw new Error("Sessão ou refresh token não encontrado para essa widgetKey");
+    throw new Error("Sessão ou refresh token não encontrado para esse usuário");
   }
 
   const basicAuth = Buffer
@@ -38,7 +38,7 @@ async function refreshAccessToken(widgetKey) {
     throw new Error("Falha ao atualizar token do Spotify");
   }
 
-  await updateAccessToken(widgetKey, {
+  await updateAccessToken(userId, {
     accessToken: data.access_token,
     expiresIn: data.expires_in || 3600
   });
@@ -46,12 +46,10 @@ async function refreshAccessToken(widgetKey) {
   return data.access_token;
 }
 
-async function getValidAccessToken(widgetKey) {
-  const session = await getSession(widgetKey);
+async function getValidAccessToken(userId) {
+  const session = await getSession(userId);
   if (!session) {
-    // se alguém chamar isso sem sessão, deixa explodir,
-    // mas na prática a gente já checa no handler
-    throw new Error("Sessão não encontrada para essa widgetKey");
+    throw new Error("Sessão não encontrada para esse usuário");
   }
 
   const now = Date.now();
@@ -60,7 +58,7 @@ async function getValidAccessToken(widgetKey) {
     return session.accessToken;
   }
 
-  return await refreshAccessToken(widgetKey);
+  return await refreshAccessToken(userId);
 }
 
 async function fetchCurrentTrackFromSpotify(accessToken) {
@@ -72,7 +70,7 @@ async function fetchCurrentTrackFromSpotify(accessToken) {
 
   if (res.status === 204) {
     return {
-      isPlaying: false,
+      playing: false,
       progressMs: 0,
       durationMs: 0,
       track: null
@@ -87,36 +85,34 @@ async function fetchCurrentTrackFromSpotify(accessToken) {
   }
 
   return {
-    isPlaying: data.is_playing,
+    playing: data.is_playing,
     progressMs: data.progress_ms,
-    durationMs: data.item?.duration_ms,
+    durationMs: data.item?.duration_ms || 0,
     track: {
-      name: data.item?.name,
-      artists: data.item?.artists?.map((a) => a.name).join(", "),
-      album: data.item?.album?.name,
-      image: data.item?.album?.images?.[0]?.url
+      title: data.item?.name || "",
+      artists: data.item?.artists?.map(a => a.name) || [],
+      albumImage: data.item?.album?.images?.[0]?.url || null
     }
   };
 }
 
 export default async function handler(req, res) {
-  const { widgetKey } = req.query;
+  const { user } = req.query;
 
-  if (!widgetKey) {
-    return res.status(400).json({ error: "MISSING_WIDGET_KEY" });
+  if (!user) {
+    return res.status(400).json({ error: "MISSING_USER" });
   }
 
   try {
-    // ✅ 1) checa se existe sessão logo de cara
-    const session = await getSession(widgetKey);
+    // 1) checa sessão
+    const session = await getSession(user);
     if (!session) {
-      // isso aqui o widget entende como "Spotify not connected"
       return res.status(404).json({ error: "NOT_CONNECTED" });
     }
 
-    // ✅ 2) tenta usar cache
-    const CACHE_WINDOW_MS = 4000; // 4s
-    const cached = await getTrackCache(widgetKey);
+    // 2) tenta usar cache
+    const CACHE_WINDOW_MS = 4000;
+    const cached = await getTrackCache(user);
 
     if (cached && cached.trackData && cached.fetchedAt) {
       const now = Date.now();
@@ -125,16 +121,15 @@ export default async function handler(req, res) {
       }
     }
 
-    // ✅ 3) garante access_token válido (com refresh automático)
-    const accessToken = await getValidAccessToken(widgetKey);
+    // 3) garante access_token válido
+    const accessToken = await getValidAccessToken(user);
 
-    // ✅ 4) chama Spotify
+    // 4) pega track atual
     const trackData = await fetchCurrentTrackFromSpotify(accessToken);
 
-    // ✅ 5) atualiza cache
-    await saveTrackCache(widgetKey, trackData);
+    // 5) salva cache
+    await saveTrackCache(user, trackData);
 
-    // ✅ 6) responde pro widget
     return res.status(200).json(trackData);
   } catch (err) {
     console.error("Erro em /api/spotify:", err);

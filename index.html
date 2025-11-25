@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     body {
-      font-family: system-ui;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: radial-gradient(circle at top, #bfadff, #363a6a 60%);
       color: #fff;
       min-height: 100vh;
@@ -22,6 +22,16 @@
       max-width: 420px;
       width: 100%;
       box-shadow: 0 18px 40px rgba(0,0,0,0.45);
+      text-align: left;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 22px;
+    }
+    p {
+      margin: 6px 0;
+      font-size: 14px;
+      line-height: 1.5;
     }
     button {
       margin-top: 16px;
@@ -35,18 +45,30 @@
       background: #bfadff;
       color: #1c1638;
     }
+    .note {
+      margin-top: 12px;
+      font-size: 12px;
+      opacity: 0.8;
+    }
   </style>
 </head>
 <body>
   <div class="card">
     <h1>Pouliefy Spotify Widget</h1>
-    <p>Clique no botão abaixo para conectar seu Spotify.</p>
+    <p>Clique abaixo para conectar sua conta do Spotify.</p>
+    <p>Depois de autorizar, vamos mostrar seu <strong>Spotify username</strong> para você copiar e colar no widget do StreamElements.</p>
 
-    <button id="connect-btn">Conectar com Spotify 🎧</button>
+    <button id="connect-btn">
+      Conectar com Spotify 🎧
+    </button>
+
+    <p class="note">
+      Abra esta página no mesmo navegador em que você está logada no Spotify.
+    </p>
   </div>
 
   <script>
-    const SPOTIFY_CLIENT_ID = "SEU_CLIENT_ID_AQUI";
+    const SPOTIFY_CLIENT_ID = "SEU_CLIENT_ID_DO_SPOTIFY_AQUI";
     const REDIRECT_URI = "https://spouliefy.vercel.app/api/spotify-login";
     const SCOPES = ["user-read-playback-state"];
 
@@ -56,11 +78,11 @@
         client_id: SPOTIFY_CLIENT_ID,
         redirect_uri: REDIRECT_URI,
         scope: SCOPES.join(" "),
-        state: "none" // não precisamos mais de state
+        state: "none"
       });
 
-      const url = `https://accounts.spotify.com/authorize?${params.toString()}`;
-      window.location.href = url;
+      const authorizeUrl = `https://accounts.spotify.com/authorize?${params.toString()}`;
+      window.location.href = authorizeUrl;
     });
   </script>
 </body>

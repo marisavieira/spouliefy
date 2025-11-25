@@ -1,18 +1,18 @@
-// api/spotifyStore.js
+// api/spotify-store.js
 import { redis } from "../lib/redis.js";
 
 const SESSION_PREFIX = "spotify-session:";
 const TRACK_PREFIX = "spotify-track:";
 
-function sessionKey(widgetKey) {
-  return SESSION_PREFIX + widgetKey;
+function sessionKey(userId) {
+  return SESSION_PREFIX + userId;
 }
 
-function trackKey(widgetKey) {
-  return TRACK_PREFIX + widgetKey;
+function trackKey(userId) {
+  return TRACK_PREFIX + userId;
 }
 
-export async function saveSession(widgetKey, { accessToken, refreshToken, expiresIn }) {
+export async function saveSession(userId, { accessToken, refreshToken, expiresIn }) {
   const now = Date.now();
   const expiresAt = now + (expiresIn - 60) * 1000; // margem de 60s
 
@@ -22,14 +22,13 @@ export async function saveSession(widgetKey, { accessToken, refreshToken, expire
     expiresAt
   };
 
-  await redis.set(sessionKey(widgetKey), JSON.stringify(data));
+  await redis.set(sessionKey(userId), JSON.stringify(data));
 }
 
-export async function getSession(widgetKey) {
-  const raw = await redis.get(sessionKey(widgetKey));
+export async function getSession(userId) {
+  const raw = await redis.get(sessionKey(userId));
   if (!raw) return null;
 
-  // Upstash pode devolver string ou objeto — garantimos string -> JSON
   if (typeof raw === "string") {
     try {
       return JSON.parse(raw);
@@ -39,32 +38,31 @@ export async function getSession(widgetKey) {
     }
   }
 
-  // Se já veio como objeto
   return raw;
 }
 
-export async function updateAccessToken(widgetKey, { accessToken, expiresIn }) {
-  const session = await getSession(widgetKey);
+export async function updateAccessToken(userId, { accessToken, expiresIn }) {
+  const session = await getSession(userId);
   if (!session) return;
 
   const now = Date.now();
   session.accessToken = accessToken;
   session.expiresAt = now + (expiresIn - 60) * 1000;
 
-  await redis.set(sessionKey(widgetKey), JSON.stringify(session));
+  await redis.set(sessionKey(userId), JSON.stringify(session));
 }
 
-export async function saveTrackCache(widgetKey, trackData) {
+export async function saveTrackCache(userId, trackData) {
   const now = Date.now();
   const cached = {
     trackData,
     fetchedAt: now
   };
-  await redis.set(trackKey(widgetKey), JSON.stringify(cached));
+  await redis.set(trackKey(userId), JSON.stringify(cached));
 }
 
-export async function getTrackCache(widgetKey) {
-  const raw = await redis.get(trackKey(widgetKey));
+export async function getTrackCache(userId) {
+  const raw = await redis.get(trackKey(userId));
   if (!raw) return null;
 
   if (typeof raw === "string") {
