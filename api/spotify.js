@@ -115,13 +115,13 @@ async function handleCallback(req, res, code) {
     :root {
       --bg: #ced1e8;
       --text-main: #141414;
-      --text-sub: #4b4b4b;
+      --text-sub: #49474C;
       --pill-bg: rgba(37, 34, 34, 0.79);
-      --pill-text: #f7f7f7;
+      --pill-text: #F2F2F2;
       --pill-radius: 100px;
-      --input-bg: #f6f6f8;
-      --input-border: #d5d5e5;
-      --input-radius: 100px;
+      --input-bg: #F2F2F2;
+      --input-border: #939196;
+      --input-radius: 10px;
       --font: "Poppins", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
         sans-serif;
     }
@@ -187,8 +187,8 @@ async function handleCallback(req, res, code) {
     }
 
     .title-block h1 {
-      font-size: 28px;
-      font-weight: 800;
+      font-size: 32px;
+      font-weight: bold;
       letter-spacing: 0.08em;
       text-transform: uppercase;
     }
