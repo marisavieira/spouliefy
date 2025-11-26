@@ -189,7 +189,6 @@ async function handleCallback(req, res, code) {
     .title-block h1 {
       font-size: 32px;
       font-weight: bold;
-      letter-spacing: 0.08em;
       text-transform: uppercase;
     }
 
@@ -202,7 +201,7 @@ async function handleCallback(req, res, code) {
     }
 
     .field-label {
-      font-size: 12px;
+      font-size: 14px;
       color: var(--text-sub);
     }
 
@@ -403,9 +402,6 @@ async function handleCallback(req, res, code) {
           <span>Disconnect from Spotify</span>
         </button>
 
-        <p class="helper-text">
-          Copy your username and paste it in your widget settings.
-        </p>
       </div>
     </section>
 
