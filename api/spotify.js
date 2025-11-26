@@ -398,7 +398,7 @@ async function handleCallback(req, res, code) {
         </div>
 
         <button id="disconnect-btn" class="primary-btn" type="button">
-          <i class="fa-brands fa-spotify" style="font-size:18px; color:#1ED760;"></i>
+          <i class="fa-brands fa-spotify" style="font-size:24px; color:#1ED760;"></i>
           <span>Disconnect from Spotify</span>
         </button>
 
