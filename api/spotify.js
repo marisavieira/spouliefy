@@ -257,8 +257,8 @@ async function handleCallback(req, res, code) {
 
     .copy-icon {
       position: relative;
-      width: 14px;
-      height: 14px;
+      width: 24.22px;
+      height: 24.22px;
     }
 
     .copy-icon::before,
