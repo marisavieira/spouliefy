@@ -107,7 +107,8 @@ async function handleCallback(req, res, code) {
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Spotify Music Widget • Connected</title>
+  <title>Spotify Widget • Connected</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root {
@@ -120,7 +121,7 @@ async function handleCallback(req, res, code) {
       --input-bg: #f6f6f8;
       --input-border: #d5d5e5;
       --input-radius: 100px;
-      --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+      --font: "Poppins", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
         sans-serif;
     }
 
