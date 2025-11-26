@@ -402,7 +402,7 @@ async function handleCallback(req, res, code) {
     <section class="card">
       <div class="left" aria-hidden="true">
         <!-- TROCAR PELA SUA IMAGEM -->
-        <img src="/img/poulieshop_site.png" alt="">
+        <img src="./image/poulie-spotify-girl.png" alt="">
       </div>
 
       <div class="right">
