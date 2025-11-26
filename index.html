@@ -5,6 +5,7 @@
   <title>Spotify Music Widget • Connect</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <style>
     :root {
       --bg: #ced1e8;
@@ -76,7 +77,7 @@
     }
 
     .title-block p {
-      margin-top: 4px;
+      margin-bottom: 4px;
       font-size: 14px;
       color: var(--text-sub);
     }
@@ -116,22 +117,6 @@
       box-shadow: 0 10px 20px rgba(0, 0, 0, 0.26);
     }
 
-    .primary-btn .spotify-dot {
-      width: 26px;
-      height: 26px;
-      border-radius: 50%;
-      background: #1ED760;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .primary-btn .spotify-dot svg {
-      width: 16px;
-      height: 16px;
-      display: block;
-    }
-
     @media (max-width: 840px) {
       .card {
         flex-direction: column;
@@ -162,17 +147,8 @@
           <h1>Spotify Music Widget</h1>
           <p>Connect your Spotify account to activate your widget</p>
         </div>
-
         <button id="connect-btn" class="primary-btn" type="button">
-          <span class="spotify-dot" aria-hidden="true">
-            <!-- Ícone Spotify em SVG para ficar nítido em qualquer tamanho -->
-            <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
-              <path
-                d="M12 0C5.383 0 0 5.383 0 12s5.383 12 12 12 12-5.383 12-12S18.617 0 12 0zm5.515 17.338a.747.747 0 0 1-1.028.249c-2.816-1.72-6.36-2.107-10.542-1.151a.748.748 0 0 1-.334-1.456c4.57-1.049 8.47-.611 11.487 1.302.35.214.461.674.249 1.056zm1.467-3.262a.938.938 0 0 1-1.29.313c-3.224-1.982-8.144-2.557-11.943-1.397a.94.94 0 0 1-1.151-.639.94.94 0 0 1 .639-1.151c4.323-1.331 9.763-.676 13.48 1.563a.937.937 0 0 1 .265 1.311zm.128-3.401C15.5 8.26 8.53 8.04 4.334 9.304a1.122 1.122 0 0 1-.66-2.147c4.795-1.474 12.45-1.213 17.223 1.563a1.12 1.12 0 0 1-1.147 1.955z"
-                fill="#000000"
-              />
-            </svg>
-          </span>
+          <i class="fa-brands fa-spotify" style="font-size:24px; color:#1ED760;"></i>
           <span>Connect to Spotify</span>
         </button>
       </div>
