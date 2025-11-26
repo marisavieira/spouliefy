@@ -236,16 +236,15 @@ async function handleCallback(req, res, code) {
     .copy-btn {
       display: flex;
       align-items: center;
+      justify-content: center;
       border: none;
       background: transparent;
       cursor: pointer;
       width: 30px;
       height: 30px;
       border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
       transition: background 0.12s ease, transform 0.12s ease;
+      padding: 0;
     }
 
     .copy-btn:hover {
@@ -259,8 +258,8 @@ async function handleCallback(req, res, code) {
 
     .copy-icon {
       position: relative;
-      width: 24.22px;
-      height: 24.22px;
+      width: 16px;
+      height: 16px;
     }
 
     .copy-icon::before,
