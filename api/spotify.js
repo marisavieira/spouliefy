@@ -41,447 +41,462 @@ export default async function handler(req, res) {
 //    + TELA PÓS LOGIN
 // ======================================================
 
-async function handleCallback(req, res, code) {
-  const clientId = process.env.SPOTIFY_CLIENT_ID;
-  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-  const redirectUri = process.env.SPOTIFY_REDIRECT_URI;
+  async function handleCallback(req, res, code) {
+    const clientId = process.env.SPOTIFY_CLIENT_ID;
+    const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+    const redirectUri = process.env.SPOTIFY_REDIRECT_URI;
 
-  const credentials = Buffer.from(
-    `${clientId}:${clientSecret}`
-  ).toString("base64");
+    const credentials = Buffer.from(
+      `${clientId}:${clientSecret}`
+    ).toString("base64");
 
-  try {
-    // 1) Trocar CODE por tokens
-    const tokenResponse = await fetch(
-      "https://accounts.spotify.com/api/token",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Basic ${credentials}`,
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams({
-          grant_type: "authorization_code",
-          code,
-          redirect_uri: redirectUri,
-        }),
+    try {
+      // 1) Trocar CODE por tokens
+      const tokenResponse = await fetch(
+        "https://accounts.spotify.com/api/token",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Basic ${credentials}`,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({
+            grant_type: "authorization_code",
+            code,
+            redirect_uri: redirectUri,
+          }),
+        }
+      );
+
+      const tokenData = await tokenResponse.json();
+
+      if (!tokenResponse.ok) {
+        console.error("Erro ao pegar token:", tokenData);
+        return res.status(500).json({ error: tokenData });
       }
-    );
 
-    const tokenData = await tokenResponse.json();
+      const accessToken = tokenData.access_token;
+      const refreshToken = tokenData.refresh_token;
+      const expiresAt = Date.now() + tokenData.expires_in * 1000;
 
-    if (!tokenResponse.ok) {
-      console.error("Erro ao pegar token:", tokenData);
-      return res.status(500).json({ error: tokenData });
-    }
+      // 2) Buscar dados do usuário (para obter o ID/username)
+      const meRes = await fetch("https://api.spotify.com/v1/me", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
 
-    const accessToken = tokenData.access_token;
-    const refreshToken = tokenData.refresh_token;
-    const expiresAt = Date.now() + tokenData.expires_in * 1000;
+      const me = await meRes.json();
 
-    // 2) Buscar dados do usuário (para obter o ID/username)
-    const meRes = await fetch("https://api.spotify.com/v1/me", {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
+      if (!meRes.ok) {
+        console.error("Erro ao buscar /me:", me);
+        return res.status(500).json({ error: "Erro ao buscar perfil" });
+      }
 
-    const me = await meRes.json();
+      const spotifyUserId = me.id; // username/ID que vamos usar como key
 
-    if (!meRes.ok) {
-      console.error("Erro ao buscar /me:", me);
-      return res.status(500).json({ error: "Erro ao buscar perfil" });
-    }
+      // 3) Salvar no Redis
+      await redis.set(`spotify:${spotifyUserId}`, {
+        accessToken,
+        refreshToken,
+        expiresAt,
+      });
 
-    const spotifyUserId = me.id; // username/ID que vamos usar como key
+      // 4) Responder com a TELA BONITA 💜
+      //    + limpar a URL para /connected usando history.replaceState
+      res.status(200).send(`<!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Spotify Widget • Connected</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="sha512-..." crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root {
+        --bg: #ced1e8;
+        --text-main: #141414;
+        --text-sub: #49474C;
+        --pill-bg: rgba(37, 34, 34, 0.79);
+        --pill-text: #F2F2F2;
+        --pill-radius: 100px;
+        --input-bg: #F2F2F2;
+        --input-border: #939196;
+        --input-radius: 10px;
+        --font: "Poppins", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+      }
 
-    // 3) Salvar no Redis
-    await redis.set(`spotify:${spotifyUserId}`, {
-      accessToken,
-      refreshToken,
-      expiresAt,
-    });
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
 
-    // 4) Responder com a TELA BONITA 💜
-    res.status(200).send(`<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Spotify Widget • Connected</title>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="sha512-..." crossorigin="anonymous" referrerpolicy="no-referrer" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    :root {
-      --bg: #ced1e8;
-      --text-main: #141414;
-      --text-sub: #49474C;
-      --pill-bg: rgba(37, 34, 34, 0.79);
-      --pill-text: #F2F2F2;
-      --pill-radius: 100px;
-      --input-bg: #F2F2F2;
-      --input-border: #939196;
-      --input-radius: 10px;
-      --font: "Poppins", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-        sans-serif;
-    }
+      body {
+        min-height: 100vh;
+        background: var(--bg);
+        font-family: var(--font);
+        color: var(--text-main);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 32px 24px;
+      }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+      .page {
+        width: 100%;
+        max-width: 1440px;
+        min-height: 600px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
 
-    body {
-      min-height: 100vh;
-      background: var(--bg);
-      font-family: var(--font);
-      color: var(--text-main);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 32px 24px;
-    }
-
-    .page {
-      width: 100%;
-      max-width: 1440px;
-      min-height: 600px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .card {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 32px;
-    }
-
-    .left {
-      flex-shrink: 0;
-    }
-
-    .left img {
-      width: 230px;
-      height: 406px;
-      max-width: 40vw;
-      object-fit: contain;
-      display: block;
-    }
-
-    .right {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: flex-start;
-      gap: 16px;
-    }
-
-    .title-block {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: flex-start;
-    }
-
-    .title-block h1 {
-      font-size: 32px;
-      font-weight: bold;
-      text-transform: uppercase;
-    }
-
-    .username-box {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 4px;
-      width: 100%;
-    }
-
-    .field-label {
-      font-size: 14px;
-      color: var(--text-sub);
-      display: flex;
-      align-items: flex-start;
-    }
-
-    .input-wrapper {
-      display: flex;
-      width: 400px;
-      max-width: 100%;
-      height: 40px;
-      align-items: center;
-      border-radius: var(--input-radius);
-      background: var(--input-bg);
-      border: 1px solid var(--input-border);
-      padding-left: 16px;
-      padding-right: 6px;
-      gap: 8px;
-    }
-
-    .input-wrapper input {
-      flex: 1;
-      height: 100%;
-      border: none;
-      outline: none;
-      background: transparent;
-      font-size: 14px;
-      color: var(--text-main);
-    }
-
-    .input-wrapper input::selection {
-      background: rgba(177, 169, 255, 0.4);
-    }
-
-    .copy-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: none;
-      background: transparent;
-      cursor: pointer;
-      width: 30px;
-      height: 30px;
-      border-radius: 8px;
-      transition: background 0.12s ease, transform 0.12s ease;
-      padding: 0;
-    }
-
-    .copy-btn:hover {
-      background: rgba(0, 0, 0, 0.06);
-      transform: translateY(-1px);
-    }
-
-    .copy-btn:active {
-      transform: translateY(0);
-    }
-
-    .copy-icon {
-      position: relative;
-      width: 16px;
-      height: 16px;
-    }
-
-    .copy-icon::before,
-    .copy-icon::after {
-      content: "";
-      position: absolute;
-      border-radius: 3px;
-      border: 1.6px solid #444;
-    }
-
-    .copy-icon::before {
-      width: 10px;
-      height: 10px;
-      left: 2px;
-      top: 4px;
-      background: transparent;
-    }
-
-    .copy-icon::after {
-      width: 10px;
-      height: 10px;
-      left: 4px;
-      top: 2px;
-      background: #fdfdfd;
-    }
-
-    .primary-btn {
-      display: flex;
-      width: 400px;
-      max-width: 100%;
-      height: 40px;
-      justify-content: center;
-      align-items: center;
-      gap: 10px;
-      flex-shrink: 0;
-      border-radius: var(--pill-radius);
-      background: var(--pill-bg);
-      color: var(--pill-text);
-      font-size: 14px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      border: none;
-      cursor: pointer;
-      box-shadow: 0 14px 26px rgba(0, 0, 0, 0.25);
-      transition: opacity 0.12s ease, transform 0.12s ease,
-        box-shadow 0.12s ease;
-    }
-
-    .primary-btn:hover {
-      opacity: 0.96;
-      transform: translateY(-1px);
-      box-shadow: 0 18px 32px rgba(0, 0, 0, 0.3);
-    }
-
-    .primary-btn:active {
-      opacity: 0.9;
-      transform: translateY(0);
-      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.25);
-    }
-
-    .helper-text {
-      font-size: 12px;
-      color: var(--text-sub);
-    }
-
-    .toast {
-      position: fixed;
-      bottom: 24px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(37, 34, 34, 0.9);
-      color: #f7f7f7;
-      padding: 8px 14px;
-      border-radius: 999px;
-      font-size: 12px;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.18s ease;
-    }
-
-    .toast--visible {
-      opacity: 1;
-    }
-
-    @media (max-width: 840px) {
       .card {
-        flex-direction: column;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 32px;
+      }
+
+      .left {
+        flex-shrink: 0;
+      }
+
+      .left img {
+        width: 230px;
+        height: 406px;
+        max-width: 40vw;
+        object-fit: contain;
+        display: block;
       }
 
       .right {
-        align-items: center;
-        text-align: center;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: flex-start;
+        gap: 16px;
       }
 
       .title-block {
-        align-items: center;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: flex-start;
+      }
+
+      .title-block h1 {
+        font-size: 32px;
+        font-weight: bold;
+        text-transform: uppercase;
       }
 
       .username-box {
-        align-items: stretch;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
         width: 100%;
       }
 
+      .field-label {
+        font-size: 14px;
+        color: var(--text-sub);
+        display: flex;
+        align-items: flex-start;
+      }
+
+      .input-wrapper {
+        display: flex;
+        width: 400px;
+        max-width: 100%;
+        height: 40px;
+        align-items: center;
+        border-radius: var(--input-radius);
+        background: var(--input-bg);
+        border: 1px solid var(--input-border);
+        padding-left: 16px;
+        padding-right: 6px;
+        gap: 8px;
+      }
+
+      .input-wrapper input {
+        flex: 1;
+        height: 100%;
+        border: none;
+        outline: none;
+        background: transparent;
+        font-size: 14px;
+        color: var(--text-main);
+      }
+
+      .input-wrapper input::selection {
+        background: rgba(177, 169, 255, 0.4);
+      }
+
+      .copy-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        transition: background 0.12s ease, transform 0.12s ease;
+        padding: 0;
+      }
+
+      .copy-btn:hover {
+        background: rgba(0, 0, 0, 0.06);
+        transform: translateY(-1px);
+      }
+
+      .copy-btn:active {
+        transform: translateY(0);
+      }
+
+      .copy-icon {
+        position: relative;
+        width: 16px;
+        height: 16px;
+      }
+
+      .copy-icon::before,
+      .copy-icon::after {
+        content: "";
+        position: absolute;
+        border-radius: 3px;
+        border: 1.6px solid #444;
+      }
+
+      .copy-icon::before {
+        width: 10px;
+        height: 10px;
+        left: 2px;
+        top: 4px;
+        background: transparent;
+      }
+
+      .copy-icon::after {
+        width: 10px;
+        height: 10px;
+        left: 4px;
+        top: 2px;
+        background: #fdfdfd;
+      }
+
+      .primary-btn {
+        display: flex;
+        width: 400px;
+        max-width: 100%;
+        height: 40px;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        flex-shrink: 0;
+        border-radius: var(--pill-radius);
+        background: var(--pill-bg);
+        color: var(--pill-text);
+        font-size: 14px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        border: none;
+        cursor: pointer;
+        box-shadow: 0 14px 26px rgba(0, 0, 0, 0.25);
+        transition: opacity 0.12s ease, transform 0.12s ease,
+          box-shadow 0.12s ease;
+      }
+
+      .primary-btn:hover {
+        opacity: 0.96;
+        transform: translateY(-1px);
+        box-shadow: 0 18px 32px rgba(0, 0, 0, 0.3);
+      }
+
+      .primary-btn:active {
+        opacity: 0.9;
+        transform: translateY(0);
+        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.25);
+      }
+
       .helper-text {
-        text-align: center;
+        font-size: 12px;
+        color: var(--text-sub);
       }
-    }
-  </style>
-</head>
-<body>
-  <main class="page">
-    <section class="card">
-      <div class="left" aria-hidden="true">
-        <!-- TROCAR PELA SUA IMAGEM -->
-        <img src="../image/poulieshop_site.png" alt="">
-      </div>
 
-      <div class="right">
-        <div class="title-block">
-          <h1>Spotify Music Widget</h1>
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(37, 34, 34, 0.9);
+        color: #f7f7f7;
+        padding: 8px 14px;
+        border-radius: 999px;
+        font-size: 12px;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.18s ease;
+      }
+
+      .toast--visible {
+        opacity: 1;
+      }
+
+      @media (max-width: 840px) {
+        .card {
+          flex-direction: column;
+        }
+
+        .right {
+          align-items: center;
+          text-align: center;
+        }
+
+        .title-block {
+          align-items: center;
+        }
+
+        .username-box {
+          align-items: stretch;
+          width: 100%;
+        }
+
+        .helper-text {
+          text-align: center;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      (function () {
+        try {
+          var url = new URL(window.location.href);
+          if (url.searchParams.get("code")) {
+            // aqui você escolhe: "/connected" ou "/"
+            window.history.replaceState({}, "", "/connected");
+          }
+        } catch (e) {
+          console.error("Não foi possível atualizar a URL:", e);
+        }
+      })();
+    </script>
+
+    <main class="page">
+      <section class="card">
+        <div class="left" aria-hidden="true">
+          <!-- TROCAR PELA SUA IMAGEM -->
+          <img src="../image/poulieshop_site.png" alt="">
         </div>
 
-        <div class="username-box">
-          <label class="field-label" for="spotify-username">Spotify username</label>
-          <div class="input-wrapper">
-            <input
-              id="spotify-username"
-              type="text"
-              readonly
-              value="${spotifyUserId}"
-            />
-            <button id="copy-btn" class="copy-btn" type="button" aria-label="Copy username">
-              <span class="copy-icon" aria-hidden="true"></span>
-            </button>
+        <div class="right">
+          <div class="title-block">
+            <h1>Spotify Music Widget</h1>
           </div>
+
+          <div class="username-box">
+            <label class="field-label" for="spotify-username">Spotify username</label>
+            <div class="input-wrapper">
+              <input
+                id="spotify-username"
+                type="text"
+                readonly
+                value="${spotifyUserId}"
+              />
+              <button id="copy-btn" class="copy-btn" type="button" aria-label="Copy username">
+                <span class="copy-icon" aria-hidden="true"></span>
+              </button>
+            </div>
+          </div>
+
+          <button id="disconnect-btn" class="primary-btn" type="button">
+            <i class="fa-brands fa-spotify" style="font-size:24px; color:#1ED760;"></i>
+            <span>Disconnect from Spotify</span>
+          </button>
+
         </div>
+      </section>
 
-        <button id="disconnect-btn" class="primary-btn" type="button">
-          <i class="fa-brands fa-spotify" style="font-size:24px; color:#1ED760;"></i>
-          <span>Disconnect from Spotify</span>
-        </button>
-
+      <div id="toast" class="toast" role="status" aria-live="polite">
+        Username copied!
       </div>
-    </section>
+    </main>
 
-    <div id="toast" class="toast" role="status" aria-live="polite">
-      Username copied!
-    </div>
-  </main>
+    <script>
+      (function () {
+        var input = document.getElementById("spotify-username");
+        var copyBtn = document.getElementById("copy-btn");
+        var toast = document.getElementById("toast");
+        var disconnectBtn = document.getElementById("disconnect-btn");
 
-  <script>
-    (function () {
-      var input = document.getElementById("spotify-username");
-      var copyBtn = document.getElementById("copy-btn");
-      var toast = document.getElementById("toast");
-      var disconnectBtn = document.getElementById("disconnect-btn");
-
-      function showToast(message) {
-        if (!toast) return;
-        toast.textContent = message;
-        toast.classList.add("toast--visible");
-        setTimeout(function () {
-          toast.classList.remove("toast--visible");
-        }, 1800);
-      }
-
-      copyBtn.addEventListener("click", function () {
-        if (!input) return;
-        var value = input.value || "";
-        if (!navigator.clipboard) {
-          input.select();
-          document.execCommand("copy");
-          showToast("Username copied!");
-          return;
+        function showToast(message) {
+          if (!toast) return;
+          toast.textContent = message;
+          toast.classList.add("toast--visible");
+          setTimeout(function () {
+            toast.classList.remove("toast--visible");
+          }, 1800);
         }
-        navigator.clipboard
-          .writeText(value)
-          .then(function () {
+
+        copyBtn.addEventListener("click", function () {
+          if (!input) return;
+          var value = input.value || "";
+          if (!navigator.clipboard) {
+            input.select();
+            document.execCommand("copy");
             showToast("Username copied!");
-          })
-          .catch(function () {
-            showToast("Could not copy :(");
-          });
-      });
+            return;
+          }
+          navigator.clipboard
+            .writeText(value)
+            .then(function () {
+              showToast("Username copied!");
+            })
+            .catch(function () {
+              showToast("Could not copy :(");
+            });
+        });
 
-      // Deslogar: chama /api/spotify?logout=1&user=<username> e depois fecha a aba
-      disconnectBtn.addEventListener("click", function () {
-        var username = (input && input.value) || "";
-        if (!username) {
-          window.location.href = "/";
-          return;
-        }
+        // Deslogar: chama /api/spotify?logout=1&user=<username> e depois fecha a aba
+        disconnectBtn.addEventListener("click", function () {
+          var username = (input && input.value) || "";
+          if (!username) {
+            window.location.href = "/";
+            return;
+          }
 
-        fetch("/api/spotify?logout=1&user=" + encodeURIComponent(username))
-          .then(function (res) {
-            if (!res.ok) throw new Error("Erro ao desconectar");
-            return res.json();
-          })
-          .then(function (data) {
-            showToast("Disconnected from Spotify");
+          fetch("/api/spotify?logout=1&user=" + encodeURIComponent(username))
+            .then(function (res) {
+              if (!res.ok) throw new Error("Erro ao desconectar");
+              return res.json();
+            })
+            .then(function (data) {
+              showToast("Disconnected from Spotify");
 
-            setTimeout(function () {
-              // volta para index
-              window.location.href = data.redirect || "/";
-            }, 700);
-          })
-          .catch(function () {
-            showToast("Could not disconnect :(");
-          });
-      });
-    })();
-  </script>
-</body>
-</html>`);
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Erro ao trocar código por token.");
+              setTimeout(function () {
+                // volta para index
+                window.location.href = data.redirect || "/";
+              }, 700);
+            })
+            .catch(function () {
+              showToast("Could not disconnect :(");
+            });
+        });
+      })();
+    </script>
+  </body>
+  </html>`);
+    } catch (err) {
+      console.error(err);
+      res.status(500).send("Erro ao trocar código por token.");
+    }
   }
-}
 
 // ======================================================
 // 2. LOGOUT / DESCONECTAR
