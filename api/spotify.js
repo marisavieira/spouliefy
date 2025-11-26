@@ -109,6 +109,7 @@ async function handleCallback(req, res, code) {
   <meta charset="UTF-8" />
   <title>Spotify Widget • Connected</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="sha512-..." crossorigin="anonymous" referrerpolicy="no-referrer" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root {
@@ -320,35 +321,6 @@ async function handleCallback(req, res, code) {
       box-shadow: 0 8px 18px rgba(0, 0, 0, 0.25);
     }
 
-    .spotify-pill-icon {
-      width: 18px;
-      height: 18px;
-      border-radius: 999px;
-      background: #1db954;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .spotify-pill-icon::before,
-    .spotify-pill-icon::after {
-      content: "";
-      position: absolute;
-      left: 16%;
-      right: 16%;
-      border-radius: 999px;
-      border: 2px solid rgba(0, 0, 0, 0.85);
-      border-color: rgba(0, 0, 0, 0.85) transparent transparent transparent;
-    }
-
-    .spotify-pill-icon::before {
-      top: 42%;
-    }
-
-    .spotify-pill-icon::after {
-      top: 56%;
-      transform: scaleX(0.9);
-    }
-
     .helper-text {
       font-size: 12px;
       color: var(--text-sub);
@@ -427,7 +399,7 @@ async function handleCallback(req, res, code) {
         </div>
 
         <button id="disconnect-btn" class="primary-btn" type="button">
-          <span class="spotify-pill-icon" aria-hidden="true"></span>
+          <i class="fa-brands fa-spotify" style="font-size:18px;"></i>
           <span>Disconnect from Spotify</span>
         </button>
 
