@@ -234,6 +234,8 @@ async function handleCallback(req, res, code) {
     }
 
     .copy-btn {
+      display: flex;
+      align-items: center;
       border: none;
       background: transparent;
       cursor: pointer;
