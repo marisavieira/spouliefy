@@ -399,7 +399,7 @@ async function handleCallback(req, res, code) {
         </div>
 
         <button id="disconnect-btn" class="primary-btn" type="button">
-          <i class="fa-brands fa-spotify" style="font-size:18px;"></i>
+          <i class="fa-brands fa-spotify" style="font-size:18px; color:#1ED760;"></i>
           <span>Disconnect from Spotify</span>
         </button>
 
@@ -453,7 +453,7 @@ async function handleCallback(req, res, code) {
       disconnectBtn.addEventListener("click", function () {
         var username = (input && input.value) || "";
         if (!username) {
-          window.close();
+          window.location.href = "/";
           return;
         }
 
@@ -462,11 +462,13 @@ async function handleCallback(req, res, code) {
             if (!res.ok) throw new Error("Erro ao desconectar");
             return res.json();
           })
-          .then(function () {
+          .then(function (data) {
             showToast("Disconnected from Spotify");
+
             setTimeout(function () {
-              window.close();
-            }, 900);
+              // volta para index
+              window.location.href = data.redirect || "/";
+            }, 700);
           })
           .catch(function () {
             showToast("Could not disconnect :(");
@@ -489,14 +491,12 @@ async function handleCallback(req, res, code) {
 async function handleLogout(req, res, spotifyUserId) {
   try {
     await redis.del(`spotify:${spotifyUserId}`);
-    // Se quisesse, aqui também dava pra chamar a API do Spotify pra revogar o token.
-    return res.status(200).json({ ok: true, user: spotifyUserId });
+    return res.status(200).json({ ok: true, redirect: "/" });
   } catch (err) {
     console.error("Erro ao deslogar usuário:", err);
     return res.status(500).json({ error: "Erro ao desconectar do Spotify." });
   }
 }
-
 // ======================================================
 // 3. REFRESH TOKEN
 // ======================================================
