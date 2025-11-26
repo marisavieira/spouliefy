@@ -1,75 +1,186 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Pouliefy • Conectar Spotify</title>
+  <title>Spotify Music Widget • Connect</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --bg: #ced1e8;
+      --text-main: #141414;
+      --text-sub: #49474C;
+      --pill-bg: #252222;
+      --pill-text: #F2F2F2;
+      --pill-radius: 999px;
+      --font: "Poppins", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
     body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: radial-gradient(circle at top, #bfadff, #363a6a 60%);
-      color: #fff;
       min-height: 100vh;
+      background: var(--bg);
+      font-family: var(--font);
+      color: var(--text-main);
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 24px;
+      padding: 32px 24px;
     }
+
+    .page {
+      width: 100%;
+      max-width: 1440px;
+      min-height: 500px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
     .card {
-      background: rgba(0, 0, 0, 0.35);
-      border-radius: 24px;
-      padding: 24px 28px;
-      max-width: 420px;
-      width: 100%;
-      box-shadow: 0 18px 40px rgba(0,0,0,0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 40px;
     }
-    h1 {
-      margin: 0 0 8px;
-      font-size: 22px;
+
+    .left {
+      flex-shrink: 0;
     }
-    p {
-      margin: 6px 0;
+
+    .left img {
+      width: 260px;
+      height: auto;
+      max-width: 40vw;
+      object-fit: contain;
+      display: block;
+    }
+
+    .right {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .title-block h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .title-block p {
+      margin-top: 4px;
       font-size: 14px;
-      line-height: 1.5;
+      color: var(--text-sub);
     }
-    button {
-      margin-top: 16px;
-      width: 100%;
-      padding: 10px 14px;
-      border-radius: 999px;
+
+    .primary-btn {
+      margin-top: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 0 28px;
+      height: 44px;
+      border-radius: var(--pill-radius);
+      background: var(--pill-bg);
+      color: var(--pill-text);
       border: none;
       cursor: pointer;
+      font-size: 14px;
       font-weight: 600;
-      font-size: 15px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      box-shadow: 0 16px 30px rgba(0, 0, 0, 0.28);
+      transition: opacity 0.12s ease, transform 0.12s ease,
+        box-shadow 0.12s ease;
     }
-    .primary {
-      background: #bfadff;
-      color: #1c1638;
+
+    .primary-btn:hover {
+      opacity: 0.96;
+      transform: translateY(-1px);
+      box-shadow: 0 20px 34px rgba(0, 0, 0, 0.32);
     }
-    .note {
-      margin-top: 12px;
-      font-size: 12px;
-      opacity: 0.8;
+
+    .primary-btn:active {
+      opacity: 0.9;
+      transform: translateY(0);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.26);
+    }
+
+    .primary-btn .spotify-dot {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: #1ED760;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .primary-btn .spotify-dot svg {
+      width: 16px;
+      height: 16px;
+      display: block;
+    }
+
+    @media (max-width: 840px) {
+      .card {
+        flex-direction: column;
+        gap: 24px;
+      }
+
+      .right {
+        align-items: center;
+        text-align: center;
+      }
+
+      .title-block {
+        text-align: center;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>Pouliefy Spotify Widget</h1>
-    <p>Conecte sua conta Spotify para usar o widget de “música tocando agora” no StreamElements.</p>
-    <p>Depois de conectar, você vai receber um código para colar no widget.</p>
+  <main class="page">
+    <section class="card">
+      <div class="left" aria-hidden="true">
+        <!-- TROCAR PELA SUA ILUSTRAÇÃO -->
+        <img src="/image/pouliefy-connect.png" alt="">
+      </div>
 
-    <button class="primary" id="connect-btn">
-      Conectar com Spotify 🎧
-    </button>
+      <div class="right">
+        <div class="title-block">
+          <h1>Spotify Music Widget</h1>
+          <p>Connect your Spotify account to activate your widget.</p>
+        </div>
 
-    <p class="note">
-      Dica: abra esta página em um navegador logado na mesma conta Spotify onde você escuta as músicas.
-    </p>
-  </div>
+        <button id="connect-btn" class="primary-btn" type="button">
+          <span class="spotify-dot" aria-hidden="true">
+            <!-- Ícone Spotify em SVG para ficar nítido em qualquer tamanho -->
+            <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+              <path
+                d="M12 0C5.383 0 0 5.383 0 12s5.383 12 12 12 12-5.383 12-12S18.617 0 12 0zm5.515 17.338a.747.747 0 0 1-1.028.249c-2.816-1.72-6.36-2.107-10.542-1.151a.748.748 0 0 1-.334-1.456c4.57-1.049 8.47-.611 11.487 1.302.35.214.461.674.249 1.056zm1.467-3.262a.938.938 0 0 1-1.29.313c-3.224-1.982-8.144-2.557-11.943-1.397a.94.94 0 0 1-1.151-.639.94.94 0 0 1 .639-1.151c4.323-1.331 9.763-.676 13.48 1.563a.937.937 0 0 1 .265 1.311zm.128-3.401C15.5 8.26 8.53 8.04 4.334 9.304a1.122 1.122 0 0 1-.66-2.147c4.795-1.474 12.45-1.213 17.223 1.563a1.12 1.12 0 0 1-1.147 1.955z"
+                fill="#000000"
+              />
+            </svg>
+          </span>
+          <span>Connect to Spotify</span>
+        </button>
+      </div>
+    </section>
+  </main>
 
   <script>
-    document.getElementById("connect-btn").addEventListener("click", () => {
+    document.getElementById("connect-btn").addEventListener("click", function () {
       window.location.href = "/api/spotify-login";
     });
   </script>
