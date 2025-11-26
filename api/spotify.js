@@ -210,7 +210,7 @@ async function handleCallback(req, res, code) {
       width: 400px;
       max-width: 100%;
       height: 40px;
-      align-items: center;
+      align-items: flex-start;
       border-radius: var(--input-radius);
       background: var(--input-bg);
       border: 1px solid var(--input-border);
